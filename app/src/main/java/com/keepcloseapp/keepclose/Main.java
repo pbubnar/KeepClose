@@ -2,6 +2,7 @@ package com.keepcloseapp.keepclose;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.StrictMode;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.location.Location;
@@ -9,6 +10,14 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.util.Log;
+import com.keepcloseapp.keepclose.kcMember;
+import com.amazonaws.auth.CognitoCachingCredentialsProvider;
+import com.amazonaws.regions.*;
+
+import com.amazonaws.services.dynamodbv2.*;
+import com.amazonaws.mobileconnectors.dynamodbv2.dynamodbmapper.*;
+
 
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -17,12 +26,18 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+
 public class Main extends FragmentActivity {
 
     private GoogleMap mMap; // Might be null if Google Play services APK is not available.
     LocationManager locationManager;
     Location currentLocation = null;
     LocationListener locationListener;
+    CognitoCachingCredentialsProvider credentialsProvider;
+    AmazonDynamoDBClient ddbClient;
+    DynamoDBMapper dataMapper;
+    String userName;
+    kcMember user;
     // Define a listener that responds to location updates
 
 
@@ -30,7 +45,14 @@ public class Main extends FragmentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        //TODO: Get rid of strict mode stuff because networking should be fixed
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+        StrictMode.setThreadPolicy(policy);
+
         setContentView(R.layout.activity_main);
+        //TODO: Setup username/password recognition and get rid of hard coded username
+        userName = "pbubnar";
         setUpMapIfNeeded();
     }
 
@@ -69,19 +91,16 @@ public class Main extends FragmentActivity {
         }
     }
 
-    /**
-     * This is where we can add markers or lines, add listeners or move the camera. In this case, we
-     * just add a marker near Africa.
-     * <p/>
-     * This should only be called once and when we are sure that {@link #mMap} is not null.
-     */
+
     private void setUpMap() {
 
         // Acquire a reference to the system Location Manager
         startLocationMapping();
+        initializeAmazonComponents();
+
         LatLng startLL = new LatLng(currentLocation.getLatitude(),currentLocation.getLongitude());
         CameraUpdate startLocation = CameraUpdateFactory.newLatLng(startLL);
-
+        updateDBLocation(startLL);
         mMap.moveCamera(startLocation);
 
 
@@ -92,6 +111,7 @@ public class Main extends FragmentActivity {
             locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
             locationListener = new LocationListener(){
                 public void onLocationChanged(Location location) {
+                    Log.w("LOCATION_CHANGE", "LOCATION WAS JUST UPDATED");
                     // Called when a new location is found by the network location provider
                     makeUseOfNewLocation(location);
                     currentLocation = location;
@@ -104,7 +124,7 @@ public class Main extends FragmentActivity {
             };
 
             if(checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==PackageManager.PERMISSION_GRANTED)
-                locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
             else
             {
                 AlertDialog.Builder alert = new AlertDialog.Builder(this);
@@ -117,7 +137,7 @@ public class Main extends FragmentActivity {
                     }
                 });
             }
-        currentLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+        currentLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
 
 
     }
@@ -126,5 +146,31 @@ public class Main extends FragmentActivity {
     {
         //mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
     }
+
+    public void initializeAmazonComponents()
+    {
+        // Initialize the Amazon Cognito credentials provider
+        credentialsProvider = new CognitoCachingCredentialsProvider(
+                getApplicationContext(),
+                "us-east-1:65a4dd82-1a07-4d7a-8abc-ba08e7b1b1eb", // Identity Pool ID
+                Regions.US_EAST_1 // Region
+        );
+
+        ddbClient = new AmazonDynamoDBClient(credentialsProvider);
+        dataMapper = new DynamoDBMapper(ddbClient);
+
+        //TODO:Move network operations to seperate thread
+        user = dataMapper.load(kcMember.class,userName);
+
+    }
+
+    public void updateDBLocation(LatLng currentLoc)
+    {
+        Log.w("UPDATE_DB","Pushing user LatLng to DB for update");
+        user.setLat((String.valueOf(currentLoc.latitude)));
+        user.setLng((String.valueOf(currentLoc.longitude)));
+        dataMapper.save(user);
+    }
+
 
 }
