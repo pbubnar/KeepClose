@@ -1,7 +1,11 @@
 package com.keepcloseapp.keepclose;
 
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.os.StrictMode;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
@@ -10,8 +14,14 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
-import com.keepcloseapp.keepclose.kcMember;
+import android.view.View;
+import android.widget.ImageView;
+
+import com.google.android.gms.maps.model.Marker;
+import com.oguzdev.circularfloatingactionmenu.library.*;
+
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
 import com.amazonaws.regions.*;
 
@@ -38,6 +48,7 @@ public class Main extends FragmentActivity {
     DynamoDBMapper dataMapper;
     String userName;
     kcMember user;
+    Marker userMarker;
     // Define a listener that responds to location updates
 
 
@@ -54,6 +65,9 @@ public class Main extends FragmentActivity {
         //TODO: Setup username/password recognition and get rid of hard coded username
         userName = "pbubnar";
         setUpMapIfNeeded();
+        //TODO: Setup If needed version of FAB
+        createFAB();
+
     }
 
     @Override
@@ -95,12 +109,12 @@ public class Main extends FragmentActivity {
     private void setUpMap() {
 
         // Acquire a reference to the system Location Manager
-        startLocationMapping();
         initializeAmazonComponents();
+        startLocationMapping();
+
 
         LatLng startLL = new LatLng(currentLocation.getLatitude(),currentLocation.getLongitude());
         CameraUpdate startLocation = CameraUpdateFactory.newLatLng(startLL);
-        updateDBLocation(startLL);
         mMap.moveCamera(startLocation);
 
 
@@ -108,6 +122,7 @@ public class Main extends FragmentActivity {
 
     public void startLocationMapping()
     {
+
             locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
             locationListener = new LocationListener(){
                 public void onLocationChanged(Location location) {
@@ -137,14 +152,39 @@ public class Main extends FragmentActivity {
                     }
                 });
             }
+
         currentLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+        if (currentLocation == null) {
+            currentLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            if(currentLocation == null) {
+                AlertDialog.Builder noLocationAlert = new AlertDialog.Builder(this);
+                noLocationAlert.setTitle("Location Not Found");
+                noLocationAlert.setMessage("Keep Close cannot determine your location, so it has to close.");
+                noLocationAlert.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                        finish();
+                        System.exit(0);
+                    }
+                });
+
+            }
+
+
+        }
+
+        initializeMarker(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()));
+
+
 
 
     }
 
     public void makeUseOfNewLocation(Location currentLoc)
     {
-        //mMap.addMarker(new MarkerOptions().position(new LatLng(0, 0)).title("Marker"));
+        LatLng currentLatLng = new LatLng(currentLoc.getLatitude(),currentLoc.getLongitude());
+        updateDBLocation(currentLatLng);
+        userMarker.setPosition(currentLatLng);
+
     }
 
     public void initializeAmazonComponents()
@@ -166,10 +206,64 @@ public class Main extends FragmentActivity {
 
     public void updateDBLocation(LatLng currentLoc)
     {
+
         Log.w("UPDATE_DB","Pushing user LatLng to DB for update");
         user.setLat((String.valueOf(currentLoc.latitude)));
         user.setLng((String.valueOf(currentLoc.longitude)));
         dataMapper.save(user);
+    }
+
+    public void  initializeMarker(LatLng currentLoc)
+    {
+        MarkerOptions a = new MarkerOptions().position(currentLoc).title(user.getUserID());
+        userMarker = mMap.addMarker(a);
+    }
+
+    public void createFAB()
+    {
+
+        //Build FAB
+        final ImageView menuFABIcon = new ImageView(this);
+        // Set image of lower right corner image
+        menuFABIcon.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_more_vert_white_24dp));
+        final FloatingActionButton rightLowerButton = new FloatingActionButton.Builder(this)
+                .setContentView(menuFABIcon)
+                .setBackgroundDrawable(R.drawable.button_action_red_touch)
+                .build();
+
+
+
+        //Build Sub buttons
+        SubActionButton.Builder rLSubBuilder = new SubActionButton.Builder(this);
+        ImageView iconGPS = new ImageView(this);
+        ImageView iconFriends = new ImageView(this);
+        ImageView iconLogout = new ImageView(this);
+
+
+        iconGPS.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_location_on_white_24dp));
+        iconFriends.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_people_white_24dp));
+        iconLogout.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_exit_to_app_white_24dp));
+        SubActionButton.Builder lCSubBuilder = new SubActionButton.Builder(this);
+        //attach sub buttons to FAB
+        final FloatingActionMenu rightLowerMenu = new FloatingActionMenu.Builder(this)
+                .addSubActionView(rLSubBuilder.setContentView(iconGPS).setBackgroundDrawable(ContextCompat.getDrawable(this , R.drawable.button_action_blue_touch)).build())
+                .addSubActionView(rLSubBuilder.setContentView(iconFriends).build())
+                .addSubActionView(rLSubBuilder.setContentView(iconLogout).build())
+            .attachTo(rightLowerButton)
+                .build();
+
+        rightLowerMenu.setStateChangeListener(new FloatingActionMenu.MenuStateChangeListener() {
+            @Override
+            public void onMenuOpened(FloatingActionMenu menu) {
+
+            }
+
+            @Override
+            public void onMenuClosed(FloatingActionMenu menu) {
+
+            }
+        });
+
     }
 
 
