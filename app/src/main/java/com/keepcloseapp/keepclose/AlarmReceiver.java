@@ -16,8 +16,6 @@ public class AlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
 
-        locationManagement LocServ = new locationManagement();
-        Log.w("ALARM", "Creating Location Services");
         locationManagement locationServices = new locationManagement();
         locationServices.createLocationServices(context);
 

@@ -6,6 +6,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Handler;
 import android.os.StrictMode;
 import android.support.annotation.MainThread;
 import android.support.v4.app.FragmentActivity;
@@ -61,13 +62,13 @@ public class Main extends FragmentActivity {
     static DynamoDBMapper dataMapper;
     static String userName;
     static kcMember user;
-    static Marker userMarker;
+    Marker userMarker;
     Context mContext = this;
     int pingSetting =30000;
-    static List<Marker> friendMarker;
-    static Marker flMarker;
-    // Define a listener that responds to location updates
-
+    List<Marker> friendMarker;
+    Marker flMarker;
+    Handler handler;
+    Runnable drawRunnable;
 
 
     @Override
@@ -91,7 +92,7 @@ public class Main extends FragmentActivity {
         if(user.getGPS().equalsIgnoreCase("ON"))
             startAlarm();
         createFAB();
-        //startDraw();
+        startDraw();
 
     }
 
@@ -175,7 +176,7 @@ public class Main extends FragmentActivity {
 
     }
 
-    static public void redrawMarkers()
+    public void redrawMarkers()
     {
         user = dataMapper.load(kcMember.class, userName);
         LatLng currentLatLng = new LatLng(Double.valueOf(user.getLat()), Double.valueOf(user.getLng()));
@@ -206,7 +207,7 @@ public class Main extends FragmentActivity {
         }
 
 
-
+        handler.postDelayed(drawRunnable, pingSetting/2);
 
     }
 
@@ -354,9 +355,16 @@ public class Main extends FragmentActivity {
 
     public void startDraw()
     {
-        Timer timer = new Timer();
-        TimerTask updateBall = new DrawTimerTask();
-        timer.scheduleAtFixedRate(updateBall, 0, pingSetting/2);
+        Log.w("HANDLER","Handler Created");
+        handler = new Handler();
+        drawRunnable = new Runnable(){
+            public void run() {
+                Log.w("HANDLER","Redraw executed");
+                redrawMarkers();
+            }
+        };
+
+        drawRunnable.run();
     }
 
 }
