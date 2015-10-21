@@ -1,23 +1,31 @@
 package com.keepcloseapp.keepclose;
 
-import android.animation.ObjectAnimator;
-import android.animation.PropertyValuesHolder;
+import android.app.Activity;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
-import android.graphics.Color;
 import android.os.StrictMode;
+import android.support.annotation.MainThread;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.Toast;
+import java.util.Timer;
+
+
+
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
+import com.amazonaws.services.dynamodbv2.model.Condition;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 
 import com.google.android.gms.maps.model.Marker;
 import com.oguzdev.circularfloatingactionmenu.library.*;
@@ -28,6 +36,7 @@ import com.amazonaws.regions.*;
 import com.amazonaws.services.dynamodbv2.*;
 import com.amazonaws.mobileconnectors.dynamodbv2.dynamodbmapper.*;
 
+import com.keepcloselibs.*;
 
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -36,19 +45,27 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TimerTask;
+
 
 public class Main extends FragmentActivity {
 
-    private GoogleMap mMap; // Might be null if Google Play services APK is not available.
-    LocationManager locationManager;
+    private static GoogleMap mMap; // Might be null if Google Play services APK is not available.
+    private PendingIntent pendingIntent;
+    locationManagement locationServices;
     Location currentLocation = null;
-    LocationListener locationListener;
     CognitoCachingCredentialsProvider credentialsProvider;
     AmazonDynamoDBClient ddbClient;
-    DynamoDBMapper dataMapper;
-    String userName;
-    kcMember user;
-    Marker userMarker;
+    static DynamoDBMapper dataMapper;
+    static String userName;
+    static kcMember user;
+    static Marker userMarker;
+    Context mContext = this;
+    int pingSetting =30000;
+    static List<Marker> friendMarker;
+    static Marker flMarker;
     // Define a listener that responds to location updates
 
 
@@ -63,10 +80,18 @@ public class Main extends FragmentActivity {
 
         setContentView(R.layout.activity_main);
         //TODO: Setup username/password recognition and get rid of hard coded username
+        Intent alarmIntent = new Intent(this, AlarmReceiver.class);
+
+        pendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, 0);
+
+        friendMarker = new ArrayList<>();
         userName = "pbubnar";
         setUpMapIfNeeded();
         //TODO: Setup If needed version of FAB
+        if(user.getGPS().equalsIgnoreCase("ON"))
+            startAlarm();
         createFAB();
+        //startDraw();
 
     }
 
@@ -112,62 +137,33 @@ public class Main extends FragmentActivity {
         initializeAmazonComponents();
         startLocationMapping();
 
-
         LatLng startLL = new LatLng(currentLocation.getLatitude(),currentLocation.getLongitude());
         CameraUpdate startLocation = CameraUpdateFactory.newLatLng(startLL);
         mMap.moveCamera(startLocation);
+        mMap.getUiSettings().setMapToolbarEnabled(false);
 
 
     }
 
     public void startLocationMapping()
     {
+        locationServices = new locationManagement();
+        locationServices.createLocationServices(this);
 
-            locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
-            locationListener = new LocationListener(){
-                public void onLocationChanged(Location location) {
-                    Log.w("LOCATION_CHANGE", "LOCATION WAS JUST UPDATED");
-                    // Called when a new location is found by the network location provider
-                    makeUseOfNewLocation(location);
-                    currentLocation = location;
+
+
+
+        currentLocation = locationServices.getLastKnownLoc(this);
+        if(currentLocation == null) {
+            AlertDialog.Builder noLocationAlert = new AlertDialog.Builder(this);
+            noLocationAlert.setTitle("Location Not Found");
+            noLocationAlert.setMessage("Keep Close cannot determine your location, so it has to close.");
+            noLocationAlert.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                public void onClick(DialogInterface dialog, int whichButton) {
+                    finish();
+                    System.exit(0);
                 }
-                public void onStatusChanged(String provider, int status, Bundle extras) {}
-
-                public void onProviderEnabled(String provider) {}
-
-                public void onProviderDisabled(String provider) {}
-            };
-
-            if(checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==PackageManager.PERMISSION_GRANTED)
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
-            else
-            {
-                AlertDialog.Builder alert = new AlertDialog.Builder(this);
-                alert.setTitle("Permission Needed!");
-                alert.setMessage("Keep Close needs your location to show your friends where you are!");
-                alert.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int whichButton) {
-                        finish();
-                        System.exit(0);
-                    }
-                });
-            }
-
-        currentLocation = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        if (currentLocation == null) {
-            currentLocation = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-            if(currentLocation == null) {
-                AlertDialog.Builder noLocationAlert = new AlertDialog.Builder(this);
-                noLocationAlert.setTitle("Location Not Found");
-                noLocationAlert.setMessage("Keep Close cannot determine your location, so it has to close.");
-                noLocationAlert.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int whichButton) {
-                        finish();
-                        System.exit(0);
-                    }
-                });
-
-            }
+            });
 
 
         }
@@ -179,11 +175,38 @@ public class Main extends FragmentActivity {
 
     }
 
-    public void makeUseOfNewLocation(Location currentLoc)
+    static public void redrawMarkers()
     {
-        LatLng currentLatLng = new LatLng(currentLoc.getLatitude(),currentLoc.getLongitude());
-        updateDBLocation(currentLatLng);
+        user = dataMapper.load(kcMember.class, userName);
+        LatLng currentLatLng = new LatLng(Double.valueOf(user.getLat()), Double.valueOf(user.getLng()));
         userMarker.setPosition(currentLatLng);
+
+
+        //Draw all users in same group
+        DynamoDBScanExpression scanExpression = new DynamoDBScanExpression();
+        scanExpression.addFilterCondition("Group",
+                new Condition()
+                        .withComparisonOperator(ComparisonOperator.EQ)
+                        .withAttributeValueList(new AttributeValue().withS(user.getGroup())));
+
+        List<kcMember> scanResult = dataMapper.scan(kcMember.class, scanExpression);
+        friendMarker.clear();
+        for (kcMember friend : scanResult) {
+            if(friend.getUserID().equalsIgnoreCase(user.getUserID())){}
+            else{
+                MarkerOptions fMarker = new MarkerOptions()
+                        .position(new LatLng(Double.valueOf(friend.getLat()), Double.valueOf(friend.getLng())))
+                        .title(friend.getUserID())
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE));
+                flMarker = mMap.addMarker(fMarker);
+                friendMarker.add(flMarker);
+            }
+
+
+        }
+
+
+
 
     }
 
@@ -204,18 +227,13 @@ public class Main extends FragmentActivity {
 
     }
 
-    public void updateDBLocation(LatLng currentLoc)
-    {
 
-        Log.w("UPDATE_DB","Pushing user LatLng to DB for update");
-        user.setLat((String.valueOf(currentLoc.latitude)));
-        user.setLng((String.valueOf(currentLoc.longitude)));
-        dataMapper.save(user);
-    }
 
-    public void  initializeMarker(LatLng currentLoc)
-    {
-        MarkerOptions a = new MarkerOptions().position(currentLoc).title(user.getUserID());
+    public void  initializeMarker(LatLng currentLoc) {
+        MarkerOptions a = new MarkerOptions()
+                .position(currentLoc)
+                .title(user.getUserID())
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
         userMarker = mMap.addMarker(a);
     }
 
@@ -235,36 +253,112 @@ public class Main extends FragmentActivity {
 
         //Build Sub buttons
         SubActionButton.Builder rLSubBuilder = new SubActionButton.Builder(this);
-        ImageView iconGPS = new ImageView(this);
+        final ImageView iconGPS = new ImageView(this);
         ImageView iconFriends = new ImageView(this);
         ImageView iconLogout = new ImageView(this);
 
-
-        iconGPS.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_location_on_white_24dp));
-        iconFriends.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_people_white_24dp));
+        if(user.getGPS().equalsIgnoreCase("ON"))
+            iconGPS.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_location_on_white_24dp));
+        if(user.getGPS().equalsIgnoreCase("OFF"))
+            iconGPS.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_location_off_white_24dp));
+        iconFriends.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_group_add_white_24dp));
         iconLogout.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_exit_to_app_white_24dp));
-        SubActionButton.Builder lCSubBuilder = new SubActionButton.Builder(this);
         //attach sub buttons to FAB
+
         final FloatingActionMenu rightLowerMenu = new FloatingActionMenu.Builder(this)
-                .addSubActionView(rLSubBuilder.setContentView(iconGPS).setBackgroundDrawable(ContextCompat.getDrawable(this , R.drawable.button_action_blue_touch)).build())
-                .addSubActionView(rLSubBuilder.setContentView(iconFriends).build())
-                .addSubActionView(rLSubBuilder.setContentView(iconLogout).build())
+                .addSubActionView(rLSubBuilder
+                        .setContentView(iconGPS)
+                        .setBackgroundDrawable(ContextCompat.getDrawable(this, R.drawable.button_action_blue_touch))
+                        .setLayoutParams(new FloatingActionButton.LayoutParams(125,125))
+                        .build())
+                .addSubActionView(rLSubBuilder
+                        .setContentView(iconFriends)
+                        .build())
+                .addSubActionView(rLSubBuilder
+                        .setContentView(iconLogout)
+                        .build())
             .attachTo(rightLowerButton)
                 .build();
 
-        rightLowerMenu.setStateChangeListener(new FloatingActionMenu.MenuStateChangeListener() {
+        //On click listeners for sub buttons for actions
+        iconGPS.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onMenuOpened(FloatingActionMenu menu) {
+            public void onClick(View v) {
 
-            }
 
-            @Override
-            public void onMenuClosed(FloatingActionMenu menu) {
-
+                if(user.getGPS().equalsIgnoreCase("ON")){
+                    locationServices.turnOffGPS(mContext);
+                    user.setGPS("OFF");
+                    cancelAlarm();
+                    dataMapper.save(user);
+                    iconGPS.setImageResource(R.drawable.ic_location_off_white_24dp);
+                    Toast.makeText(mContext, "GPS turned off", Toast.LENGTH_SHORT).show();
+                }
+                else if(user.getGPS().equalsIgnoreCase("OFF")) {
+                    if(checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==PackageManager.PERMISSION_GRANTED)
+                        locationServices.turnOnGPS(mContext);
+                    else
+                    {
+                        AlertDialog.Builder alert = new AlertDialog.Builder(mContext);
+                        alert.setTitle("Permission Needed!");
+                        alert.setMessage("Keep Close needs your location to show your friends where you are!");
+                        alert.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int whichButton) {
+                                finish();
+                                System.exit(0);
+                            }
+                        });
+                    }
+                    user.setGPS("ON");
+                    dataMapper.save(user);
+                    startAlarm();
+                    iconGPS.setImageResource(R.drawable.ic_location_on_white_24dp);
+                    Toast.makeText(mContext, "GPS turned on", Toast.LENGTH_SHORT).show();
+                }
             }
         });
+        iconFriends.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Toast.makeText(mContext, "Group Works", Toast.LENGTH_SHORT).show();
+            }
+        });
+        iconLogout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Toast.makeText(mContext, "Logout Works", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+
+
 
     }
 
 
+
+    public void startAlarm() {
+        AlarmManager manager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        int interval = pingSetting;
+
+        manager.setInexactRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), interval, pendingIntent);
+        Toast.makeText(this, "Alarm Set", Toast.LENGTH_SHORT).show();
+        Log.w("ALARM","Started");
+    }
+
+    public void cancelAlarm() {
+        AlarmManager manager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        manager.cancel(pendingIntent);
+        Toast.makeText(this, "Alarm Canceled", Toast.LENGTH_SHORT).show();
+    }
+
+    public void startDraw()
+    {
+        Timer timer = new Timer();
+        TimerTask updateBall = new DrawTimerTask();
+        timer.scheduleAtFixedRate(updateBall, 0, pingSetting/2);
+    }
+
 }
+
+
