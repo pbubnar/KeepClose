@@ -1,4 +1,5 @@
 package com.keepcloselibs;
+import com.keepcloseapp.*;
 
 
 import android.app.Activity;
@@ -9,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.StrictMode;
 import android.util.Log;
@@ -31,9 +33,7 @@ public class locationManagement {
     public void createLocationServices(Context context) {
         mContext = context;
 
-        //DONT FORGET TO GET RID OF STRICT AND USE NETWORK THREAD YO
-        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-        StrictMode.setThreadPolicy(policy);
+
         userName = "pbubnar";
         initializeAmazonDataMapper(context);
         locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
@@ -114,7 +114,7 @@ public class locationManagement {
         Log.w("UPDATE_DB","Pushing user LatLng to DB for update");
         user.setLat((String.valueOf(currentLoc.latitude)));
         user.setLng((String.valueOf(currentLoc.longitude)));
-        dataMapper.save(user);
+        new locationUpdateDB().execute(user);
     }
 
     private void initializeAmazonDataMapper(Context context)
@@ -132,7 +132,20 @@ public class locationManagement {
         dataMapper = new DynamoDBMapper(ddbClient);
 
 
-        user = dataMapper.load(kcMember.class,userName);
 
     }
+
+
+    private class locationUpdateDB extends AsyncTask<kcMember,Void,Void> {
+        @Override
+        protected Void doInBackground(kcMember...kcMembers) {
+
+            kcMember asyncUser = dataMapper.load(kcMember.class,userName);
+            asyncUser.setLat(kcMembers[0].getLat());
+            asyncUser.setLng(kcMembers[0].getLng());
+            dataMapper.save(asyncUser);
+            return null;
+        }
+    }
+
 }

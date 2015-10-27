@@ -6,9 +6,10 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.AsyncTask;
 import android.os.Handler;
+
 import android.os.StrictMode;
-import android.support.annotation.MainThread;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.location.Location;
@@ -49,6 +50,9 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TimerTask;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 
 public class Main extends FragmentActivity {
@@ -71,13 +75,13 @@ public class Main extends FragmentActivity {
     Runnable drawRunnable;
 
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        //TODO: Get rid of strict mode stuff because networking should be fixed
-        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-        StrictMode.setThreadPolicy(policy);
+
+        userName = "pbubnar";
 
         setContentView(R.layout.activity_main);
         //TODO: Setup username/password recognition and get rid of hard coded username
@@ -86,12 +90,10 @@ public class Main extends FragmentActivity {
         pendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, 0);
 
         friendMarker = new ArrayList<>();
-        userName = "pbubnar";
+
         setUpMapIfNeeded();
-        //TODO: Setup If needed version of FAB
-        if(user.getGPS().equalsIgnoreCase("ON"))
-            startAlarm();
-        createFAB();
+
+
         startDraw();
 
     }
@@ -169,47 +171,13 @@ public class Main extends FragmentActivity {
 
         }
 
-        initializeMarker(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()));
 
 
 
 
-    }
-
-    public void redrawMarkers()
-    {
-        user = dataMapper.load(kcMember.class, userName);
-        LatLng currentLatLng = new LatLng(Double.valueOf(user.getLat()), Double.valueOf(user.getLng()));
-        userMarker.setPosition(currentLatLng);
-
-
-        //Draw all users in same group
-        DynamoDBScanExpression scanExpression = new DynamoDBScanExpression();
-        scanExpression.addFilterCondition("Group",
-                new Condition()
-                        .withComparisonOperator(ComparisonOperator.EQ)
-                        .withAttributeValueList(new AttributeValue().withS(user.getGroup())));
-
-        List<kcMember> scanResult = dataMapper.scan(kcMember.class, scanExpression);
-        friendMarker.clear();
-        for (kcMember friend : scanResult) {
-            if(friend.getUserID().equalsIgnoreCase(user.getUserID())){}
-            else{
-                MarkerOptions fMarker = new MarkerOptions()
-                        .position(new LatLng(Double.valueOf(friend.getLat()), Double.valueOf(friend.getLng())))
-                        .title(friend.getUserID())
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE));
-                flMarker = mMap.addMarker(fMarker);
-                friendMarker.add(flMarker);
-            }
-
-
-        }
-
-
-        handler.postDelayed(drawRunnable, pingSetting/2);
 
     }
+
 
     public void initializeAmazonComponents()
     {
@@ -223,8 +191,13 @@ public class Main extends FragmentActivity {
         ddbClient = new AmazonDynamoDBClient(credentialsProvider);
         dataMapper = new DynamoDBMapper(ddbClient);
 
-        //TODO:Move network operations to seperate thread
-        user = dataMapper.load(kcMember.class,userName);
+        new loadUser().execute();
+
+
+
+
+
+
 
     }
 
@@ -291,7 +264,7 @@ public class Main extends FragmentActivity {
                     locationServices.turnOffGPS(mContext);
                     user.setGPS("OFF");
                     cancelAlarm();
-                    dataMapper.save(user);
+                    new updateDB().execute(user);
                     iconGPS.setImageResource(R.drawable.ic_location_off_white_24dp);
                     Toast.makeText(mContext, "GPS turned off", Toast.LENGTH_SHORT).show();
                 }
@@ -311,7 +284,7 @@ public class Main extends FragmentActivity {
                         });
                     }
                     user.setGPS("ON");
-                    dataMapper.save(user);
+                    new updateDB().execute(user);
                     startAlarm();
                     iconGPS.setImageResource(R.drawable.ic_location_on_white_24dp);
                     Toast.makeText(mContext, "GPS turned on", Toast.LENGTH_SHORT).show();
@@ -360,13 +333,121 @@ public class Main extends FragmentActivity {
         drawRunnable = new Runnable(){
             public void run() {
                 Log.w("HANDLER","Redraw executed");
-                redrawMarkers();
+                redrawEverything();
             }
         };
 
         drawRunnable.run();
     }
 
+    public void redrawEverything()
+    {
+        new redrawUser().execute();
+        new redrawMarkers().execute();
+        handler.postDelayed(drawRunnable, pingSetting / 2);
+    }
+
+
+
+    private class updateDB extends AsyncTask<kcMember,Void,Void> {
+        @Override
+
+        protected Void doInBackground(kcMember...kcMembers) {
+
+
+            dataMapper.save(kcMembers);
+
+            return null;
+
+        }
+    }
+
+    private class redrawMarkers extends AsyncTask<Void,Void,List<kcMember>> {
+        @Override
+
+        protected List<kcMember> doInBackground(Void...voids) {
+
+
+            DynamoDBScanExpression asyncScanExpression = new DynamoDBScanExpression();
+            asyncScanExpression.addFilterCondition("Group",
+                    new Condition()
+                            .withComparisonOperator(ComparisonOperator.EQ)
+                            .withAttributeValueList(new AttributeValue().withS(user.getGroup())));
+            return dataMapper.scan(kcMember.class, asyncScanExpression);
+
+
+
+
+
+        }
+        @Override
+        protected void onPostExecute(List<kcMember> groupList) {
+
+            friendMarker.clear();
+            for (kcMember friend : groupList) {
+                if(friend.getUserID().equalsIgnoreCase(user.getUserID())){}
+                else{
+                    MarkerOptions fMarker = new MarkerOptions()
+                            .position(new LatLng(Double.valueOf(friend.getLat()), Double.valueOf(friend.getLng())))
+                            .title(friend.getUserID())
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE));
+                    flMarker = mMap.addMarker(fMarker);
+                    friendMarker.add(flMarker);
+                }
+
+
+            }
+
+
+
+        }
+    }
+
+    private class redrawUser extends AsyncTask<Void,Void,kcMember> {
+        @Override
+
+        protected kcMember doInBackground(Void...voids) {
+
+
+           return dataMapper.load(kcMember.class, userName);
+
+
+
+
+
+        }
+        @Override
+        protected void onPostExecute(kcMember asyncUser) {
+
+            user = asyncUser;
+            LatLng currentLatLng = new LatLng(Double.valueOf(user.getLat()), Double.valueOf(user.getLng()));
+            userMarker.setPosition(currentLatLng);
+
+        }
+    }
+
+    private class loadUser extends AsyncTask<Void,Void,kcMember> {
+        @Override
+
+        protected kcMember doInBackground(Void...voids) {
+
+            Log.w("Load User", "Do in background");
+            return dataMapper.load(kcMember.class,userName);
+
+        }
+        @Override
+        protected void onPostExecute(kcMember asyncUser) {
+            Log.w("Load User", "user loaded");
+            user = asyncUser;
+            initializeMarker(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()));
+            if(user.getGPS().equalsIgnoreCase("ON"))
+                startAlarm();
+            createFAB();
+
+        }
+    }
+
 }
+
 
 
