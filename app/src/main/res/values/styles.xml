@@ -1,8 +1,22 @@
 <resources>
 
+    <color name="LoginBack">#4FC3F7</color>
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
         <!-- Customize your theme here. -->
+    </style>
+    <style name="AppTheme.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+    <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
+    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
+
+    <style name="LoginPage" parent="AppTheme.NoActionBar">
+        <item name="android:windowBackground">@color/LoginBack</item>
+        <item name="colorAccent">#f8564b</item>
+        <item name="android:textColorSecondary">#fff</item>
+
     </style>
 
 </resources>

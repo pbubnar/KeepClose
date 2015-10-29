@@ -6,13 +6,14 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.StrictMode;
+import android.preference.PreferenceManager;
 import android.util.Log;
 
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
@@ -25,16 +26,14 @@ import com.keepcloseapp.keepclose.kcMember;
 public class locationManagement {
     private LocationManager locationManager;
     private LocationListener locationListener;
-    private kcMember user;
     private DynamoDBMapper dataMapper;
     private String userName;
     private Context mContext;
 
     public void createLocationServices(Context context) {
         mContext = context;
-
-
-        userName = "pbubnar";
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        userName = preferences.getString("Username","empty");
         initializeAmazonDataMapper(context);
         locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         locationListener = new LocationListener() {
@@ -110,11 +109,15 @@ public class locationManagement {
 
     private void updateUserLoc(LatLng currentLoc)
     {
-
-        Log.w("UPDATE_DB","Pushing user LatLng to DB for update");
-        user.setLat((String.valueOf(currentLoc.latitude)));
-        user.setLng((String.valueOf(currentLoc.longitude)));
-        new locationUpdateDB().execute(user);
+        if(userName.equalsIgnoreCase("empty"))
+        {}
+        else {
+            kcMember user = dataMapper.load(kcMember.class, userName);
+            Log.w("UPDATE_DB", "Pushing user LatLng to DB for update");
+            user.setLat((String.valueOf(currentLoc.latitude)));
+            user.setLng((String.valueOf(currentLoc.longitude)));
+            new locationUpdateDB().execute(user);
+        }
     }
 
     private void initializeAmazonDataMapper(Context context)

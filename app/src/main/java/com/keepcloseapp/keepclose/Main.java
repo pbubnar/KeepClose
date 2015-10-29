@@ -5,11 +5,13 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.AsyncTask;
 import android.os.Handler;
 
 import android.os.StrictMode;
+import android.preference.PreferenceManager;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.location.Location;
@@ -49,10 +51,7 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.TimerTask;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+
 
 
 public class Main extends FragmentActivity {
@@ -73,18 +72,21 @@ public class Main extends FragmentActivity {
     Marker flMarker;
     Handler handler;
     Runnable drawRunnable;
+    SharedPreferences preferences;
 
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-
         userName = "pbubnar";
+        preferences = PreferenceManager.getDefaultSharedPreferences(mContext);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString("Username",userName);
+        editor.commit();
+
 
         setContentView(R.layout.activity_main);
-        //TODO: Setup username/password recognition and get rid of hard coded username
         Intent alarmIntent = new Intent(this, AlarmReceiver.class);
 
         pendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, 0);
@@ -269,20 +271,9 @@ public class Main extends FragmentActivity {
                     Toast.makeText(mContext, "GPS turned off", Toast.LENGTH_SHORT).show();
                 }
                 else if(user.getGPS().equalsIgnoreCase("OFF")) {
-                    if(checkCallingOrSelfPermission("android.permission.ACCESS_FINE_LOCATION")==PackageManager.PERMISSION_GRANTED)
-                        locationServices.turnOnGPS(mContext);
-                    else
-                    {
-                        AlertDialog.Builder alert = new AlertDialog.Builder(mContext);
-                        alert.setTitle("Permission Needed!");
-                        alert.setMessage("Keep Close needs your location to show your friends where you are!");
-                        alert.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int whichButton) {
-                                finish();
-                                System.exit(0);
-                            }
-                        });
-                    }
+
+                    locationServices.turnOnGPS(mContext);
+
                     user.setGPS("ON");
                     new updateDB().execute(user);
                     startAlarm();
@@ -294,13 +285,15 @@ public class Main extends FragmentActivity {
         iconFriends.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(mContext, "Group Works", Toast.LENGTH_SHORT).show();
+
+
+                Toast.makeText(mContext, "Group Popup", Toast.LENGTH_SHORT).show();
             }
         });
         iconLogout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(mContext, "Logout Works", Toast.LENGTH_SHORT).show();
+                Toast.makeText(mContext, "Logout Button Works", Toast.LENGTH_SHORT).show();
             }
         });
 
@@ -355,7 +348,8 @@ public class Main extends FragmentActivity {
         protected Void doInBackground(kcMember...kcMembers) {
 
 
-            dataMapper.save(kcMembers);
+            dataMapper.save(kcMembers[0]);
+
 
             return null;
 
