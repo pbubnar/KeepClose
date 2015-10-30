@@ -14,29 +14,27 @@
         android:layout_height="wrap_content"
         android:id="@+id/txtUsername"
         android:width="200dp"
-        android:hint="           Username           "
-        android:gravity="center"
+        android:hint="Username"
         android:textColor="#fff"
         android:textColorHint="#fff"
         android:layout_marginBottom="15dp"
         android:layout_above="@+id/txtPass"
-        android:layout_centerHorizontal="true" />
+        android:layout_centerHorizontal="true"
+        android:gravity="center" />
 
     <EditText
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:inputType="textPassword"
-        android:ems="10"
         android:id="@+id/txtPass"
         android:width="200dp"
-        android:hint="           Password           "
-        android:gravity="center"
+        android:hint="Password"
         android:textColor="#fff"
         android:textColorHint="#fff"
         android:layout_centerVertical="true"
         android:layout_alignLeft="@+id/txtUsername"
         android:layout_alignStart="@+id/txtUsername"
-        android:password="false" />
+        android:gravity="center" />
 
     <com.dd.CircularProgressButton
         android:layout_width="wrap_content"

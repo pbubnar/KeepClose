@@ -73,17 +73,17 @@ public class Main extends FragmentActivity {
     Handler handler;
     Runnable drawRunnable;
     SharedPreferences preferences;
+    SharedPreferences.Editor editor;
 
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        userName = "pbubnar";
         preferences = PreferenceManager.getDefaultSharedPreferences(mContext);
-        SharedPreferences.Editor editor = preferences.edit();
-        editor.putString("Username",userName);
-        editor.commit();
+        userName = preferences.getString("Username",null);
+        editor = preferences.edit();
+
 
 
         setContentView(R.layout.activity_main);
@@ -293,7 +293,11 @@ public class Main extends FragmentActivity {
         iconLogout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(mContext, "Logout Button Works", Toast.LENGTH_SHORT).show();
+                Toast.makeText(mContext, "Logging Out", Toast.LENGTH_SHORT).show();
+                editor.clear();
+                editor.commit();
+                Intent intent = new Intent(mContext, Login.class);
+                startActivity(intent);
             }
         });
 

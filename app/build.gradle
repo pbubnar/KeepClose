@@ -29,6 +29,7 @@ dependencies {
     compile 'com.amazonaws:aws-android-sdk-s3:2.+'
     compile 'com.amazonaws:aws-android-sdk-ddb:2.+'
     compile 'com.amazonaws:aws-android-sdk-ddb-mapper:2.+'
+    compile 'com.amazonaws:aws-android-sdk-lambda:2.2.+'
     compile 'com.oguzdev:CircularFloatingActionMenu:1.0.2'
     compile 'com.android.support:design:23.1.0'
     compile 'com.android.support:multidex:1.0.0'
