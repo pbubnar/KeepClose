@@ -34,8 +34,10 @@ public class Login extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         preferences = PreferenceManager.getDefaultSharedPreferences(this);
-        if(preferences.getBoolean("loggedIn",false))
+        if(preferences.getBoolean("loggedIn",false)) {
             launchMainApp();
+            finish();
+        }
 
         createLogin();
         textCheck();
@@ -55,23 +57,20 @@ public class Login extends AppCompatActivity {
         loginProgress = (CircularProgressButton) findViewById(R.id.btnLogin);
 
         loginProgress.setIndeterminateProgressMode(true);
-        loginProgress.setText("Log In");
-        loginProgress.setCompleteText("Logged in");
-        loginProgress.setErrorText("Log in Failed");
+
         loginProgress.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 LoginEventRequest request = new LoginEventRequest();
-                userEditText = (EditText)findViewById(R.id.txtUsername);
-                EditText passEditText = (EditText)findViewById(R.id.txtPass);
-                request.setUsername(userEditText.getText().toString());
+                userEditText = (EditText) findViewById(R.id.txtUsername);
+                EditText passEditText = (EditText) findViewById(R.id.txtPass);
+                request.setUsername(userEditText.getText().toString().trim());
                 Log.w("TEXTCHECK", userEditText.getText().toString());
-                request.setPassword(passEditText.getText().toString());
+                request.setPassword(passEditText.getText().toString().trim());
 
                 new AsyncTask<LoginEventRequest, Void, JsonObject>() {
                     @Override
-                    protected void onPreExecute()
-                    {
+                    protected void onPreExecute() {
                         loginProgress.setProgress(50);
                         findViewById(R.id.txtAuth).setVisibility(View.VISIBLE);
                     }
@@ -83,7 +82,7 @@ public class Login extends AppCompatActivity {
                             return loginInterface.LambdaKCLogin(params[0]);
                         } catch (LambdaFunctionException lfe) {
                             Log.e("Tag", "Failed to invoke login", lfe);
-                            Log.e("deetz",lfe.getDetails());
+                            Log.e("deetz", lfe.getDetails());
                             return null;
                         }
 
@@ -91,21 +90,24 @@ public class Login extends AppCompatActivity {
 
                     @Override
                     protected void onPostExecute(JsonObject result) {
-                        if (result == null) {
-                            return;
-                        }
 
+                        findViewById(R.id.txtAuth).setVisibility(View.INVISIBLE);
                         loginData = result;
                         Log.wtf("RESULT OF QUERY", loginData.toString());
-                        loginProgress.setProgress(100);
-                        findViewById(R.id.txtAuth).setVisibility(View.INVISIBLE);
-                        SharedPreferences.Editor editor = preferences.edit();
-                        editor.putString("Username", userEditText.getText().toString());
-                        editor.putBoolean("loggedIn",true);
-                        editor.commit();
-                        launchMainApp();
+                        if (loginData.get("login").getAsBoolean()==true){
+                            loginProgress.setProgress(100);
+                            SharedPreferences.Editor editor = preferences.edit();
+                            editor.putString("Username", userEditText.getText().toString());
+                            editor.putBoolean("loggedIn", true);
+                            editor.commit();
+                            launchMainApp();
+                            finish();
+                        }
+                        else{
+                            findViewById(R.id.textFailed).setVisibility(View.VISIBLE);
+                            loginProgress.setProgress(0);
 
-
+                        }
 
 
                     }

@@ -30,10 +30,11 @@ public class locationManagement {
     private String userName;
     private Context mContext;
 
+
     public void createLocationServices(Context context) {
         mContext = context;
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
-        userName = preferences.getString("Username","empty");
+        userName = preferences.getString("Username",null);
         initializeAmazonDataMapper(context);
         locationManager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         locationListener = new LocationListener() {
@@ -112,7 +113,7 @@ public class locationManagement {
         if(userName.equalsIgnoreCase("empty"))
         {}
         else {
-            kcMember user = dataMapper.load(kcMember.class, userName);
+            kcMember user = new kcMember();
             Log.w("UPDATE_DB", "Pushing user LatLng to DB for update");
             user.setLat((String.valueOf(currentLoc.latitude)));
             user.setLng((String.valueOf(currentLoc.longitude)));
@@ -150,5 +151,7 @@ public class locationManagement {
             return null;
         }
     }
+
+
 
 }

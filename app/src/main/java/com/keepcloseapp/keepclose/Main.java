@@ -20,6 +20,7 @@ import android.content.DialogInterface;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 import java.util.Timer;
@@ -71,6 +72,7 @@ public class Main extends FragmentActivity {
     List<Marker> friendMarker;
     Marker flMarker;
     Handler handler;
+    Boolean FABexists = false;
     Runnable drawRunnable;
     SharedPreferences preferences;
     SharedPreferences.Editor editor;
@@ -79,11 +81,12 @@ public class Main extends FragmentActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+
         super.onCreate(savedInstanceState);
         preferences = PreferenceManager.getDefaultSharedPreferences(mContext);
-        userName = preferences.getString("Username",null);
+        userName = preferences.getString("Username", null);
         editor = preferences.edit();
-
 
 
         setContentView(R.layout.activity_main);
@@ -92,16 +95,18 @@ public class Main extends FragmentActivity {
         pendingIntent = PendingIntent.getBroadcast(this, 0, alarmIntent, 0);
 
         friendMarker = new ArrayList<>();
-
         setUpMapIfNeeded();
-
-
         startDraw();
+
 
     }
 
+
+
+
+
     @Override
-    protected void onResume() {
+    protected void onResume(){
         super.onResume();
         setUpMapIfNeeded();
 
@@ -193,7 +198,7 @@ public class Main extends FragmentActivity {
         ddbClient = new AmazonDynamoDBClient(credentialsProvider);
         dataMapper = new DynamoDBMapper(ddbClient);
 
-        new loadUser().execute();
+        new redrawUser().execute();
 
 
 
@@ -231,14 +236,14 @@ public class Main extends FragmentActivity {
         SubActionButton.Builder rLSubBuilder = new SubActionButton.Builder(this);
         final ImageView iconGPS = new ImageView(this);
         ImageView iconFriends = new ImageView(this);
-        ImageView iconLogout = new ImageView(this);
+        ImageView iconSettings = new ImageView(this);
 
         if(user.getGPS().equalsIgnoreCase("ON"))
             iconGPS.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_location_on_white_24dp));
         if(user.getGPS().equalsIgnoreCase("OFF"))
             iconGPS.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_location_off_white_24dp));
         iconFriends.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_group_add_white_24dp));
-        iconLogout.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_exit_to_app_white_24dp));
+        iconSettings.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.ic_exit_to_app_white_24dp));
         //attach sub buttons to FAB
 
         final FloatingActionMenu rightLowerMenu = new FloatingActionMenu.Builder(this)
@@ -251,7 +256,7 @@ public class Main extends FragmentActivity {
                         .setContentView(iconFriends)
                         .build())
                 .addSubActionView(rLSubBuilder
-                        .setContentView(iconLogout)
+                        .setContentView(iconSettings)
                         .build())
             .attachTo(rightLowerButton)
                 .build();
@@ -285,12 +290,38 @@ public class Main extends FragmentActivity {
         iconFriends.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-
-
-                Toast.makeText(mContext, "Group Popup", Toast.LENGTH_SHORT).show();
+                AlertDialog.Builder groupManager = new AlertDialog.Builder(mContext);
+                groupManager.setTitle("Groups");
+                groupManager.setMessage("Would you like to create or join a group?");
+                groupManager.setNegativeButton("Create", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface v, int i) {
+                        new createGroup().execute(user);
+                    }
+                });
+                groupManager.setPositiveButton("Join", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface v, int i) {
+                        AlertDialog.Builder joinGroup = new AlertDialog.Builder(mContext);
+                        final EditText input = new EditText(mContext);
+                        input.setHint("Username to join");
+                        joinGroup.setTitle("Join");
+                        joinGroup.setMessage("Please enter the username of the creator of the group!");
+                        joinGroup.setView(input);
+                        joinGroup.setPositiveButton("Join!", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface v, int i) {
+                                new joinGroup().execute(input.getText().toString());
+                            }
+                        });
+                        joinGroup.create();
+                    }
+                });
+                groupManager.create();
+//                Toast.makeText(mContext, "Group Popup", Toast.LENGTH_SHORT).show();
             }
         });
-        iconLogout.setOnClickListener(new View.OnClickListener() {
+        iconSettings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Toast.makeText(mContext, "Logging Out", Toast.LENGTH_SHORT).show();
@@ -298,6 +329,7 @@ public class Main extends FragmentActivity {
                 editor.commit();
                 Intent intent = new Intent(mContext, Login.class);
                 startActivity(intent);
+                finish();
             }
         });
 
@@ -341,7 +373,7 @@ public class Main extends FragmentActivity {
     {
         new redrawUser().execute();
         new redrawMarkers().execute();
-        handler.postDelayed(drawRunnable, pingSetting / 2);
+        handler.postDelayed(drawRunnable, (pingSetting / 2)-200);
     }
 
 
@@ -388,7 +420,7 @@ public class Main extends FragmentActivity {
                     MarkerOptions fMarker = new MarkerOptions()
                             .position(new LatLng(Double.valueOf(friend.getLat()), Double.valueOf(friend.getLng())))
                             .title(friend.getUserID())
-                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ROSE));
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
                     flMarker = mMap.addMarker(fMarker);
                     friendMarker.add(flMarker);
                 }
@@ -402,48 +434,94 @@ public class Main extends FragmentActivity {
     }
 
     private class redrawUser extends AsyncTask<Void,Void,kcMember> {
-        @Override
+                @Override
 
-        protected kcMember doInBackground(Void...voids) {
-
-
-           return dataMapper.load(kcMember.class, userName);
+                protected kcMember doInBackground(Void...voids) {
 
 
+                    return dataMapper.load(kcMember.class, userName);
 
+
+                }
+                @Override
+                protected void onPostExecute(kcMember asyncUser) {
+
+                    user = asyncUser;
+
+                    if(user == null)
+                    {
+                        editor.clear();
+                        editor.commit();
+                        Intent intent = new Intent(mContext, Login.class);
+                        startActivity(intent);
+                        finish();
+                    }
+
+                    LatLng currentLatLng = new LatLng(Double.valueOf(user.getLat()), Double.valueOf(user.getLng()));
+                    if(userMarker != null)
+                        userMarker.setPosition(currentLatLng);
+                    else
+                        initializeMarker(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()));
+            if(!FABexists) {
+                createFAB();
+                if(user.getGPS().equalsIgnoreCase("ON"))
+                    startAlarm();
+                FABexists = true;
+            }
 
 
         }
-        @Override
-        protected void onPostExecute(kcMember asyncUser) {
+    }
 
-            user = asyncUser;
-            LatLng currentLatLng = new LatLng(Double.valueOf(user.getLat()), Double.valueOf(user.getLng()));
-            userMarker.setPosition(currentLatLng);
+
+    private class createGroup extends AsyncTask<kcMember,Void,Void> {
+        @Override
+
+        protected Void doInBackground(kcMember...kcMembers) {
+
+            kcMembers[0].setGroup(kcMembers[0].getUserID());
+            dataMapper.save(kcMembers[0]);
+
+
+            return null;
+
+        }
+    }
+    private class joinGroup extends AsyncTask<String,Void, Boolean> {
+        @Override
+
+        protected Boolean doInBackground(String...strings) {
+
+            kcMember asyncuser = dataMapper.load(kcMember.class, userName);
+            asyncuser.setGroup(strings[0]);
+            dataMapper.save(asyncuser);
+            return true;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean success) {
+            if(success)
+            Toast.makeText(mContext,"Group joined successfully!",Toast.LENGTH_SHORT);
+        }
+
+    }
+
+    private class leaveGroup extends AsyncTask<kcMember,Void,Void> {
+        @Override
+
+        protected Void doInBackground(kcMember...kcMembers) {
+
+            kcMembers[0].setGroup("Null");
+            dataMapper.save(kcMembers[0]);
+
+
+            return null;
 
         }
     }
 
-    private class loadUser extends AsyncTask<Void,Void,kcMember> {
-        @Override
 
-        protected kcMember doInBackground(Void...voids) {
 
-            Log.w("Load User", "Do in background");
-            return dataMapper.load(kcMember.class,userName);
-
-        }
-        @Override
-        protected void onPostExecute(kcMember asyncUser) {
-            Log.w("Load User", "user loaded");
-            user = asyncUser;
-            initializeMarker(new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude()));
-            if(user.getGPS().equalsIgnoreCase("ON"))
-                startAlarm();
-            createFAB();
-
-        }
-    }
 
 }
 

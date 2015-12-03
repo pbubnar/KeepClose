@@ -20,7 +20,10 @@
         android:layout_marginBottom="15dp"
         android:layout_above="@+id/txtPass"
         android:layout_centerHorizontal="true"
-        android:gravity="center" />
+        android:gravity="center"
+        android:nestedScrollingEnabled="false"
+        android:singleLine="true"
+        android:maxLength="30" />
 
     <EditText
         android:layout_width="wrap_content"
@@ -34,7 +37,9 @@
         android:layout_centerVertical="true"
         android:layout_alignLeft="@+id/txtUsername"
         android:layout_alignStart="@+id/txtUsername"
-        android:gravity="center" />
+        android:gravity="center"
+        android:singleLine="true"
+        android:maxLength="30" />
 
     <com.dd.CircularProgressButton
         android:layout_width="wrap_content"
@@ -46,7 +51,11 @@
         android:shadowColor="#000000"
         android:singleLine="false"
         android:background="#fff"
-        android:clickable="false" />
+        android:clickable="false"
+        app:cpb_textComplete="Logged in"
+        app:cpb_textError="Log in Failed"
+        app:cpb_textIdle="Log In"/>
+
 
     <TextView
         android:layout_width="wrap_content"
@@ -77,6 +86,16 @@
         android:layout_marginBottom="68dp"
         android:src="@drawable/logo"
         android:layout_above="@+id/txtUsername"
+        android:layout_centerHorizontal="true" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:attr/textAppearanceMedium"
+        android:text="Login Failed"
+        android:id="@+id/textFailed"
+        android:visibility="invisible"
+        android:layout_alignTop="@+id/txtAuth"
         android:layout_centerHorizontal="true" />
 
 </RelativeLayout>
